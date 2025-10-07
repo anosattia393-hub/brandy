@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>شركة Mohamed Attia للنظافة</title>
+<style>
+body{font-family:Arial;text-align:center;background:#f8f9fa;margin:0;padding:0;}
+header{background:#0d6efd;color:white;padding:15px;font-size:20px;}
+.login,.main{max-width:400px;margin:auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px #ccc;margin-top:40px;}
+input,button{width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:8px;font-size:16px;}
+button{background:#0d6efd;color:white;border:none;cursor:pointer;}
+button:hover{background:#0b5ed7;}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+th,td{border:1px solid #ccc;padding:8px;text-align:center;}
+th{background:#e9ecef;}
+.delete-btn{cursor:pointer;color:red;font-size:18px;}
+.lang{position:fixed;bottom:5px;left:5px;font-size:14px;}
+footer{margin-top:30px;font-size:14px;color:gray;}
+.logout-btn{background:#c0392b;margin-top:10px;}
+@media(max-width:600px){.login,.main{margin-top:20px;}}
+</style>
+</head>
+<body>
+
+<header>شركة Mohamed Attia للنظافة</header>
+
+<div class="login" id="loginDiv">
+<h3>تسجيل الدخول</h3>
+<input id="username" placeholder="اسم المستخدم">
+<input id="password" type="password" placeholder="كلمة المرور">
+<button id="loginBtn">دخول</button>
+</div>
+
+<div class="main" id="mainDiv" style="display:none;">
+<h3 id="welcome"></h3>
+<div id="shiftForm">
+<input id="shiftDate" type="date">
+<input id="shiftLocation" placeholder="المكان">
+<input id="shiftCount" type="number" min="1" placeholder="عدد الشفتات">
+<input id="shiftTotal" type="number" min="0" placeholder="الإجمالي">
+<button id="addShiftBtn">إضافة الشفت</button>
+<button id="exportBtn">📊 تصدير Excel</button>
+</div>
+
+<table id="shiftTable">
+<thead><tr><th>التاريخ</th><th>المكان</th><th>عدد الشفتات</th><th>الإجمالي</th><th>🗑️</th></tr></thead>
+<tbody id="shiftBody"></tbody>
+</table>
+
+<h4 id="grandTotal"></h4>
+<button class="logout-btn" id="logoutBtn">تسجيل الخروج</button>
+
+<footer>Made by Ahmed</footer>
+
+<div class="lang">
+🌐 <select id="langSelect">
+<option value="ar">عربي</option>
+<option value="en">English</option>
+</select>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// المستخدمين
+const users={m1:"1234",m2:"5678",admin:"admin"};
+let lang="ar";
+
+// الدوال
+function showMainPage(){
+  document.getElementById("loginDiv").style.display="none";
+  document.getElementById("mainDiv").style.display="block";
+  const user=localStorage.getItem("loggedUser");
+  document.getElementById("welcome").textContent=user==="admin"?"مرحبًا، المدير":"مرحبًا "+user;
+  showShifts();
+}
+
+function login(){
+  const u=document.getElementById("username").value.trim();
+  const p=document.getElementById("password").value.trim();
+  if(users[u] && users[u]===p){
+    localStorage.setItem("loggedUser",u);
+    showMainPage();
+  }else alert("بيانات غير صحيحة");
+}
+
+function logout(){
+  localStorage.removeItem("loggedUser");
+  document.getElementById("mainDiv").style.display="none";
+  document.getElementById("loginDiv").style.display="block";
+}
+
+function addShift(){
+  const user=localStorage.getItem("loggedUser");
+  const d=document.getElementById("shiftDate").value;
+  const l=document.getElementById("shiftLocation").value;
+  const c=document.getElementById("shiftCount").value;
+  const t=document.getElementById("shiftTotal").value;
+  if(!d||!l||!c||!t){alert("املأ كل الخانات");return;}
+  const newShift={date:d,loc:l,shifts:c,total:t};
+  let arr=JSON.parse(localStorage.getItem("shifts_"+user)||"[]");
+  arr.push(newShift);
+  localStorage.setItem("shifts_"+user,JSON.stringify(arr));
+  showShifts();
+  // مسح الحقول بعد الإضافة
+  document.getElementById("shiftDate").value="";
+  document.getElementById("shiftLocation").value="";
+  document.getElementById("shiftCount").value="";
+  document.getElementById("shiftTotal").value="";
+}
+
+function showShifts(){
+  const user=localStorage.getItem("loggedUser");
+  const tbody=document.getElementById("shiftBody");
+  tbody.innerHTML="";
+  let data=[];
+  if(user==="admin"){
+    Object.keys(users).forEach(u=>{
+      if(u!=="admin"){let d=JSON.parse(localStorage.getItem("shifts_"+u)||"[]");d.forEach(r=>data.push({...r,user:u}));}
+    });
+  } else data=JSON.parse(localStorage.getItem("shifts_"+user)||"[]");
+
+  data.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${r.date}</td><td>${r.loc}</td><td>${r.shifts}</td><td>${r.total}</td>
+    <td><span class="delete-btn" onclick="deleteShift(${i},'${r.user||user}')">🗑️</span></td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById("grandTotal").textContent=
+    lang==="ar"?`الإجمالي الكلي: ${computeTotal()}`:`Grand Total: ${computeTotal()}`;
+}
+
+function deleteShift(index,user){
+  let arr=JSON.parse(localStorage.getItem("shifts_"+user)||"[]");
+  arr.splice(index,1);
+  localStorage.setItem("shifts_"+user,JSON.stringify(arr));
+  showShifts();
+}
+
+function computeTotal(){
+  const user=localStorage.getItem("loggedUser");
+  let allTotals=[];
+  if(user==="admin"){
+    Object.keys(users).forEach(u=>{
+      if(u!=="admin"){let d=JSON.parse(localStorage.getItem("shifts_"+u)||"[]");allTotals.push(...d.map(r=>Number(r.total)));}
+    });
+  } else{
+    const d=JSON.parse(localStorage.getItem("shifts_"+user)||"[]");
+    allTotals=d.map(r=>Number(r.total));
+  }
+  return allTotals.reduce((a,b)=>a+b,0);
+}
+
+function exportExcel(){
+  const user=localStorage.getItem("loggedUser");
+  let data=[];
+  if(user==="admin"){
+    Object.keys(users).forEach(u=>{
+      if(u!=="admin"){let d=JSON.parse(localStorage.getItem("shifts_"+u)||"[]");d.forEach(r=>data.push({User:u,Date:r.date,Location:r.loc,Shifts:r.shifts,Total:r.total}));}
+    });
+  } else{
+    let d=JSON.parse(localStorage.getItem("shifts_"+user)||"[]");
+    d.forEach(r=>data.push({Date:r.date,Location:r.loc,Shifts:r.shifts,Total:r.total}));
+  }
+  const ws=XLSX.utils.json_to_sheet(data);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Shifts");
+  XLSX.writeFile(wb,user==="admin"?"shifts_MohamedAttia.xlsx":`shifts_${user}.xlsx`);
+}
+
+function toggleLang(){
+  lang=document.getElementById("langSelect").value;
+  document.dir=lang==="ar"?"rtl":"ltr";
+  showShifts();
+}
+
+// إضافة أحداث بعد تحميل الصفحة
+window.onload=function(){
+  const user=localStorage.getItem("loggedUser");
+  if(user) showMainPage();
+  document.getElementById("loginBtn").addEventListener("click",login);
+  document.getElementById("addShiftBtn").addEventListener("click",addShift);
+  document.getElementById("exportBtn").addEventListener("click",exportExcel);
+  document.getElementById("logoutBtn").addEventListener("click",logout);
+  document.getElementById("langSelect").addEventListener("change",toggleLang);
+};
+</script>
+
+</body>
+</html>
